@@ -12,7 +12,6 @@ build/
 *.exe
 *.o
 *.obj
-*.dll
 *.so
 *.dylib
 *.pdb
