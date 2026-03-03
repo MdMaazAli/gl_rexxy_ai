@@ -4,7 +4,7 @@
 * **Md Maaz Ali Haider** (@MdMaazAli) - **Project Founder & Lead Architect**
   * Responsible for core system design, OpenGL environment development, and state-space definitions.
 
-* **[Collaborator Name/Username]** - **Lead Optimizer**
+* **Ritesh Ranjan** (@Riteshiiitbh24) - **Lead Optimizer**
   * Responsible for IPC infrastructure (Sockets), Replay Buffer management, and training stability.
 
 ## Contribution Policy
