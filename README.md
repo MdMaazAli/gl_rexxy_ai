@@ -12,10 +12,11 @@
 * **Communication Layer**: High-speed Inter-Process Communication (IPC) via localhost sockets, allowing for parallel execution of the game and the brain.
 
 ## Roadmap
-* **Phase 0: Infrastructure**: Repository setup, licensing, and environment isolation (Completed).
-* **Phase 1: Brain Development**: Implementing the Keras-based DQN architecture and PER buffer.
-* **Phase 2: Handshake**: Establishing the C++ to Python socket communication protocol.
-* **Phase 3: Training & Refinement**: Headless mode optimization and rewards shaping.
+* **Phase 0: Infrastructure**: Repository configuration, licensing, and environment isolation (Completed).
+* **Phase 1: OpenGL Environment Engine**: Implementation of the C++ rendering pipeline, physics system, and state-data extraction modules.
+* **Phase 2: Brain Architecture**: Implementation of the Keras-based DQN and the Prioritized Experience Replay buffer.
+* **Phase 3: Integration Handshake**: Development of the socket-based synchronization protocol between C++ and Python.
+* **Phase 4: Optimization & Training**: Evaluation of headless mode performance and reward function shaping.
 
 ## License & Contributors
 * **License**: This project is licensed under the **MIT License**.
