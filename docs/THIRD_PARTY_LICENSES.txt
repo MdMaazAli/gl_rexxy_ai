@@ -1,0 +1,18 @@
+﻿# Third-Party Licenses
+
+This project, Rexxy AI, utilizes the following open-source libraries. Their original licenses are maintained by their respective authors.
+
+## GLFW
+* **License**: zlib/libpng license
+* **Website**: https://www.glfw.org/
+* **Use Case**: Multi-platform window management and input handling for the Rexxy OpenGL environment.
+
+## GLAD
+* **License**: MIT / Public Domain
+* **Website**: https://github.com/Dav1dde/glad
+* **Use Case**: OpenGL function pointer loader generated for the Architect's specific C++ requirements.
+
+## TensorFlow / Keras
+* **License**: Apache License 2.0
+* **Website**: https://www.tensorflow.org/
+* **Use Case**: Powers the Deep Q-Network cognitive engine.
