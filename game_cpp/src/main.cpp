@@ -229,7 +229,8 @@ int main(){
 
         for (auto it = obstacles.begin(); it != obstacles.end(); ) {
             it->Pos.x -= it->Speed*dt;
-            isCollision = Collision::CheckCollision_Sphere(player.Pos,0.5f,it->Pos,it->Size);
+            glm::vec3 trueAABBCenter = it->Pos + glm::vec3(0.0f, it->Size.y / 2.0f, 0.0f);
+            isCollision = Collision::CheckCollision_Sphere(player.Pos,0.5f,trueAABBCenter,it->Size);
             if(isCollision){
                 cout<<"DEBUG::Collision"<<endl;
             }
