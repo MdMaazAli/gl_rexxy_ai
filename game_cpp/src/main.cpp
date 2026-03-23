@@ -56,6 +56,7 @@ float speedY = 0.0f;
 glm::vec3 playerPos = glm::vec3(0.0f);
 bool isGrounded = true;
 
+int action = 0;
 void processInput(GLFWwindow* window){
     if(glfwGetKey(window,GLFW_KEY_ESCAPE) == GLFW_PRESS){
         glfwSetWindowShouldClose(window,true);
@@ -73,7 +74,11 @@ void processInput(GLFWwindow* window){
         camera.ProcessKeyboard(RIGHT,deltaTime);
     }
     // debug
-    if(glfwGetKey(window,GLFW_KEY_SPACE) == GLFW_PRESS && isGrounded){
+    action = 0;
+    // if(glfwGetKey(window,GLFW_KEY_SPACE) == GLFW_PRESS && isGrounded){
+    //     action = 1;
+    // }
+    if(action == 1 && isGrounded){
         isGrounded = false;
         speedY = 5.0f;
     }
@@ -84,11 +89,11 @@ void framebuffer_size_callback(GLFWwindow* window,int width,int height){
 }
 
 void initModel(Shader shader,glm::mat4 model,glm::mat4 view,glm::mat4 projection,glm::vec3 lightColor,glm::vec3 lightPosView){
-        shader.setMat4("model",model);
-        shader.setMat4("view",view);
-        shader.setMat4("projection",projection);
-        shader.setVec3("lightColor",lightColor);
-        shader.setVec3("lightPosView",lightPosView);
+    shader.setMat4("model",model);
+    shader.setMat4("view",view);
+    shader.setMat4("projection",projection);
+    shader.setVec3("lightColor",lightColor);
+    shader.setVec3("lightPosView",lightPosView);
 }
 
 struct Player{
@@ -102,6 +107,29 @@ struct Obstacle{
     float Speed;
 };
 
+struct Collider{
+    glm::vec3 Pos;
+    glm::vec3 Size;
+    float speed;
+};
+
+vector<float> getState(const vector<Obstacle>& obstacles){
+    float distance = 20.0f;
+    float speed = 0.0f;
+    float height = 0.0f;
+    
+    for(auto& obs:obstacles){
+        float dist = obs.Pos.x;
+        if(dist > 0 && dist < distance){
+            distance = dist;
+            speed = obs.Speed;
+            height = obs.Size.y;
+        }
+    }
+    
+    return {playerPos.y,speedY,isGrounded ? 1.0f:0.0f,distance,height,speed};
+}
+
 int main(){
 
     SOCKET sock = initSocket();
@@ -114,7 +142,7 @@ int main(){
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,3);
     glfwWindowHint(GLFW_OPENGL_PROFILE,GLFW_OPENGL_CORE_PROFILE);
-
+    
     GLFWwindow* window = glfwCreateWindow(800,600,"GL_REXXY",NULL,NULL);
     if(window == NULL){
         cout<<"failed to initialize window"<<endl;
@@ -122,17 +150,17 @@ int main(){
         return -1;
     }
     glfwMakeContextCurrent(window);
-
+    
     // ----- GUI ----- //
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-
+    
     ImGui::StyleColorsDark();
-
+    
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 330");
-
+    
     if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){
         cout<<"failed to initialize GLAD"<<endl;
         return -1;
@@ -141,15 +169,15 @@ int main(){
     Shader rexxyShader("src/rexxyVertShader.glsl","src/rexxyFragShader.glsl");
     SimpleMesh rexxyMesh("sphere");
     Player player;
-
+    
     glfwSetFramebufferSizeCallback(window,framebuffer_size_callback);
     glfwSetCursorPosCallback(window,mouse_callback);
     glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
     glfwSetScrollCallback(window,scroll_callback);
-
+    
     glEnable(GL_DEPTH_TEST);
     glViewport(0,0,800,600);
-
+    
     vector<Obstacle> obstacles;
     SimpleMesh pyramid("pyramid");
     
@@ -179,7 +207,7 @@ int main(){
         }
         
         processInput(window);
-
+        
         glClearColor(0.1f,0.2f,0.3f,1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
@@ -191,56 +219,74 @@ int main(){
         
         glm::vec3 lightPosView = vec3(view*vec4(lightPos,1.0f));
         
-        // physics loop
-        while(accTime>=dt){
-            if(!isGrounded){
-                float gravity = 9.8f;
-                speedY -= gravity*dt;
-                playerPos.y += speedY*dt -(1/2)*gravity*dt*dt;
-                if(playerPos.y <= 0.0f && !isGrounded){
-                    isGrounded = true;
-                    playerPos.y = 0.0f;
-                    speedY = 0.0f;
-                }
-            }
-            accTime-=dt;
-        }
-        
-        // rexxy
-        rexxyShader.use();
-        glm::mat4 rexxy = glm::mat4(1.0f);
-        rexxy = glm::translate(rexxy,glm::vec3(0.0,playerPos.y,0.0f));
-        rexxy = glm::scale(rexxy,glm::vec3(0.5f));
-        player.Pos = playerPos;
-        player.Size = glm::vec3(0.5f);
-        initModel(rexxyShader,rexxy,view,projection,lightColor,lightPosView);
-        rexxyMesh.draw();
-
         //  obstacles
         spawnTimer += deltaTime;
         if(spawnTimer >= spawnRate){
             Obstacle newObstacle;
             newObstacle.Pos = glm::vec3((rand()%6)+10.0f,0.0f,0.0f);
             newObstacle.Size = glm::vec3(0.4f);
-            newObstacle.Speed = 0.21f;
+            newObstacle.Speed = 5.0f;
             obstacles.push_back(newObstacle);
-            spawnTimer = 0.0f;
+            spawnTimer -= spawnRate;
         }
-
-        for (auto it = obstacles.begin(); it != obstacles.end(); ) {
-            it->Pos.x -= it->Speed*dt;
-            glm::vec3 trueAABBCenter = it->Pos + glm::vec3(0.0f, it->Size.y / 2.0f, 0.0f);
-            isCollision = Collision::CheckCollision_Sphere(player.Pos,0.5f,trueAABBCenter,it->Size);
-            if(isCollision){
-                cout<<"DEBUG::Collision"<<endl;
+        
+        // physics loop
+        float reward = 1.0f;
+        bool done = false;
+        action = (rand() % 5 == 0) ? 1 : 0;
+        while(accTime>=dt){
+            player.Pos = playerPos;
+            player.Size = glm::vec3(0.5f);
+            if(action == 1 && isGrounded){
+                isGrounded = false;
+                speedY = 5.0f;
             }
-            if(it->Pos.x < -10.0f){
-                it = obstacles.erase(it);
+            if(!isGrounded){
+                float gravity = 9.8f;
+                speedY -= gravity*dt;
+                playerPos.y += speedY*dt -(0.5f)*gravity*dt*dt;
+                if(playerPos.y <= 0.0f && !isGrounded){
+                    isGrounded = true;
+                    playerPos.y = 0.0f;
+                    speedY = 0.0f;
+                }
             }
-            else{
-                ++it;
+            for (auto it = obstacles.begin(); it != obstacles.end(); ) {
+                it->Pos.x -= it->Speed*dt;
+                glm::vec3 trueAABBCenter = it->Pos + glm::vec3(0.0f, it->Size.y / 2.0f, 0.0f);
+                isCollision = Collision::CheckCollision_Sphere(player.Pos,0.25f,trueAABBCenter,it->Size);
+                if(isCollision){
+                    cout<<"< ------------------------ DEBUG::COLLISION ----------------------- >"<<endl;
+                    reward = -100.0f;
+                    done = true;
+                }
+                if(it->Pos.x < -10.0f){
+                    it = obstacles.erase(it);
+                }
+                else{
+                    ++it;
+                }
             }
+            accTime -= dt;
         }
+        if(done){
+            playerPos = glm::vec3(0.0f);
+            speedY = 0.0f;
+            isGrounded = true;
+            obstacles.clear();
+        }
+        // ----- DEBUG ----- //
+        cout<<endl;
+        cout<<"REWARD:"<<reward<<" "<<"RESET:"<<done<<endl;
+        cout<<endl;
+        
+        // rexxy
+        rexxyShader.use();
+        glm::mat4 rexxy = glm::mat4(1.0f);
+        rexxy = glm::translate(rexxy,glm::vec3(0.0,playerPos.y,0.0f));
+        rexxy = glm::scale(rexxy,glm::vec3(0.5f));
+        initModel(rexxyShader,rexxy,view,projection,lightColor,lightPosView);
+        rexxyMesh.draw();
         
         rexxyShader.use();
         for(auto it:obstacles){
@@ -251,6 +297,11 @@ int main(){
             initModel(rexxyShader,model,view,projection,lightColor,lightPosView);
             pyramid.draw();
         }
+        vector<float> states = getState(obstacles);
+
+        cout << "STATE: ";
+        for(float s : states) cout << s << " ";
+        cout << endl;        
 
         // ----- GUI ----- //
         ImGui::Begin("Debug");
