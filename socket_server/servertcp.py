@@ -1,81 +1,70 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from replay_buffer.replay_buffer import ReplayBuffer
 import socket
 import time
+import random
+import struct
 
 HOST = "0.0.0.0"
 PORT = 5000
 
-try:
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-except socket.error as err:
-    print("Socket creation failed:", err)
-    exit()
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-try:
-    server.bind((HOST, PORT))
-except socket.error as err:
-    print("Bind failed:", err)
-    exit()
-
+server.bind((HOST, PORT))
 server.listen(1)
+
 print("Server waiting for connection...")
 
-try:
-    conn, addr = server.accept()
-    print("Connected from:", addr)
+conn, addr = server.accept()
+print("Connected from:", addr)
 
-    
-    conn.send(b"Connection Established! AI takes over now.")
+conn.send(b"Connection Established!")
 
-   
-    conn.setblocking(False)
+ 
+conn.setblocking(True)
 
-    while True:
+buffer = ReplayBuffer(10000)
 
-       
-        try:
-            data = conn.recv(1024)
+prev_state = None
+prev_action = None
 
-            if data:
-                print("Rexxy State:", data.decode())
-
-        except BlockingIOError:
-           
-            pass
-
-        except Exception as e:
-            print("Client disconnected:", e)
-            break
-
-
-       
-        ai_action = "MOVE_LEFT"  
-
-        try:
-            conn.send(ai_action.encode())
-
-        except BlockingIOError:
-            pass
-
-        except socket.error:
-            print("Client disconnected while sending")
-            break
-
-
-       
-        time.sleep(0.1)
-
-
-except socket.error as err:
-    print("Connection error:", err)
-
-except KeyboardInterrupt:
-    print("\nServer stopped")
-
-finally:
+while True:
     try:
-        conn.close()
-    except:
-        pass
+       
+        data = conn.recv(24)  # 6 floats * 4 bytes
 
-    server.close()
+        if not data or len(data) < 24:
+            continue
+
+        state = struct.unpack('6f', data)
+        print("State:", state)
+
+        reward = 1
+        done = False
+
+        if prev_state is not None:
+            experience = (prev_state, prev_action, reward, state, done)
+            buffer.add(experience)
+            print("Buffer size:", buffer.size())
+
+      
+        action = random.randint(0, 1)
+
+        prev_state = state
+        prev_action = action
+
+      
+        conn.sendall(struct.pack('i', action))
+
+    except Exception as e:
+       # print("Error:", e)
+        break
+
+    time.sleep(0.1)
+
+conn.close()
+server.close()
