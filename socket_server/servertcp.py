@@ -24,7 +24,7 @@ print("Connected from:", addr)
 
 conn.send(b"Connection Established!")
 
-# ✅ blocking mode (sync)
+ 
 conn.setblocking(True)
 
 buffer = ReplayBuffer(10000)
@@ -34,7 +34,7 @@ prev_action = None
 
 while True:
     try:
-        # 🔥 wait until full data comes (blocking)
+       
         data = conn.recv(24)  # 6 floats * 4 bytes
 
         if not data or len(data) < 24:
@@ -51,17 +51,17 @@ while True:
             buffer.add(experience)
             print("Buffer size:", buffer.size())
 
-        # 🔥 action
+      
         action = random.randint(0, 1)
 
         prev_state = state
         prev_action = action
 
-        # 🔥 send action
+      
         conn.sendall(struct.pack('i', action))
 
     except Exception as e:
-        print("Error:", e)
+       # print("Error:", e)
         break
 
     time.sleep(0.1)
