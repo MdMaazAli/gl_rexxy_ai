@@ -21,9 +21,6 @@ print("Server waiting for connection...")
 
 conn, addr = server.accept()
 print("Connected from:", addr)
-
-conn.send(b"Connection Established!")
-
  
 conn.setblocking(True)
 
@@ -35,36 +32,33 @@ prev_action = None
 while True:
     try:
        
-        data = conn.recv(24)  # 6 floats * 4 bytes
+        data = conn.recv(32)  # 8 floats * 4 bytes
 
-        if not data or len(data) < 24:
+        if not data or len(data) < 32:
             continue
 
-        state = struct.unpack('6f', data)
-        print("State:", state)
+        unpack_data = struct.unpack('8f', data)
 
-        reward = 1
-        done = False
+        # current state and reward variables
+        currState = unpack_data[0:6]
+        reward = unpack_data[6]
+        done = False;
 
         if prev_state is not None:
-            experience = (prev_state, prev_action, reward, state, done)
+            experience = (prev_state, prev_action, reward, currState, done)
             buffer.add(experience)
-            print("Buffer size:", buffer.size())
-
+            # print("Buffer size:", buffer.size())
       
         action = random.randint(0, 1)
 
-        prev_state = state
+        prev_state = currState
         prev_action = action
-
       
         conn.sendall(struct.pack('i', action))
 
     except Exception as e:
        # print("Error:", e)
         break
-
-    time.sleep(0.1)
 
 conn.close()
 server.close()
