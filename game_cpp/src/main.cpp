@@ -113,10 +113,12 @@ struct Collider{
     float speed;
 };
 
-vector<float> getState(const vector<Obstacle>& obstacles){
+vector<float> getState(const vector<Obstacle>& obstacles,float reward,bool done){
     float distance = 20.0f;
     float speed = 0.0f;
     float height = 0.0f;
+    float currReward = reward;
+    bool isDone = done;
     
     for(auto& obs:obstacles){
         float dist = obs.Pos.x;
@@ -127,7 +129,7 @@ vector<float> getState(const vector<Obstacle>& obstacles){
         }
     }
     
-    return {playerPos.y,speedY,isGrounded ? 1.0f:0.0f,distance,height,speed};
+    return {playerPos.y,speedY,isGrounded ? 1.0f:0.0f,distance,height,speed,currReward,isDone ? 1.0f:0.0f};
 }
 
 int main(){
@@ -137,6 +139,9 @@ int main(){
     if(sock == INVALID_SOCKET){
         std::cout<<"Socket failed\n";
     }
+
+    DWORD timeout = 1; // 1 ms
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
     
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
@@ -183,28 +188,23 @@ int main(){
     
     bool isCollision = false;
     float accTime = 0.0f,dt = 1/60.0f;
+
+    // obs spawner
     float spawnTimer = 0.0f,spawnRate = 1.5f;
+
+    // rl learning timer
+    float rlTimer = 0.0f,rlStep = 1/30.0f;
+
+    // reward variables
+    float prevReward = 1.0f;
+    bool prevDone = false;
+
     while(!glfwWindowShouldClose(window)){
-        // ----- GUI ----- //
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
         
         float currFrame = glfwGetTime();
         deltaTime = currFrame - lastFrame;
         lastFrame = currFrame;
         accTime += deltaTime;
-        
-        const char* msg = "REXXY runs fast and jumps high";
-        send(sock,msg,strlen(msg),0);
-        
-        char buffer[512];
-        int bytesReceived = recv(sock, buffer, sizeof(buffer)-1, 0);
-        
-        if(bytesReceived > 0) {
-            buffer[bytesReceived] = '\0';
-            std::cout << "AI says: " << buffer << std::endl;
-        }
         
         processInput(window);
         
@@ -230,10 +230,31 @@ int main(){
             spawnTimer -= spawnRate;
         }
         
-        // physics loop
         float reward = 1.0f;
         bool done = false;
-        action = (rand() % 5 == 0) ? 1 : 0;
+        rlTimer += deltaTime;
+        if(rlTimer >= rlStep){
+            vector<float> states = getState(obstacles,prevReward,prevDone);
+            send(sock,(char*)states.data(),sizeof(float)*8,0);
+            
+            // ----- DEBUG ----- //
+            // cout << "STATE: ";
+            // for(float s : states) cout << s << " ";
+            // cout << endl;
+
+            // resetting reward variables
+            prevReward = reward;
+            prevDone = false;
+            
+            int bytes = recv(sock, (char*)&action, sizeof(int), 0);
+            if(bytes > 0 ){
+                cout<<"REXXY : "<<action<<endl;
+            }
+            
+            rlTimer -= rlStep;
+        }
+        
+        // physics loop
         while(accTime>=dt){
             player.Pos = playerPos;
             player.Size = glm::vec3(0.5f);
@@ -256,8 +277,7 @@ int main(){
                 glm::vec3 trueAABBCenter = it->Pos + glm::vec3(0.0f, it->Size.y / 2.0f, 0.0f);
                 isCollision = Collision::CheckCollision_Sphere(player.Pos,0.25f,trueAABBCenter,it->Size);
                 if(isCollision){
-                    cout<<"< ------------------------ DEBUG::COLLISION ----------------------- >"<<endl;
-                    reward = -100.0f;
+                    // cout<<"< ------------------------ DEBUG::COLLISION ----------------------- >"<<endl;
                     done = true;
                 }
                 if(it->Pos.x < -10.0f){
@@ -267,18 +287,22 @@ int main(){
                     ++it;
                 }
             }
+            if(done){
+                prevReward = -100.0f;
+                playerPos = glm::vec3(0.0f);
+                prevDone = done;
+                speedY = 0.0f;
+                isGrounded = true;
+                obstacles.clear();
+
+                done = false;
+            }
             accTime -= dt;
         }
-        if(done){
-            playerPos = glm::vec3(0.0f);
-            speedY = 0.0f;
-            isGrounded = true;
-            obstacles.clear();
-        }
         // ----- DEBUG ----- //
-        cout<<endl;
-        cout<<"REWARD:"<<reward<<" "<<"RESET:"<<done<<endl;
-        cout<<endl;
+        // cout<<endl;
+        // cout<<"REWARD:"<<reward<<" "<<"RESET:"<<done<<endl;
+        // cout<<endl;
         
         // rexxy
         rexxyShader.use();
@@ -297,25 +321,24 @@ int main(){
             initModel(rexxyShader,model,view,projection,lightColor,lightPosView);
             pyramid.draw();
         }
-        vector<float> states = getState(obstacles);
-
-        cout << "STATE: ";
-        for(float s : states) cout << s << " ";
-        cout << endl;        
-
+        
         // ----- GUI ----- //
-        ImGui::Begin("Debug");
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
 
+        ImGui::Begin("Debug");
+        
         ImGui::Text("Camera Position:");
         ImGui::Text("X: %.2f", camera.Position.x);
         ImGui::Text("Y: %.2f", camera.Position.y);
         ImGui::Text("Z: %.2f", camera.Position.z);
-
+        
         ImGui::End();
-
+        
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+        
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

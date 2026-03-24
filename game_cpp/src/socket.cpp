@@ -43,7 +43,8 @@ SOCKET initSocket(){
             result->ai_protocol   
         );
         
-        u_long mode = 1; // 1 = Non-blocking, 0 = Blocking
+        // Blocking for RL sync
+        u_long mode = 0; // 1 = Non-blocking, 0 = Blocking
         if (ioctlsocket(connectSocket, FIONBIO, &mode) != 0) {
             cout << "ioctlsocket failed with error: " << WSAGetLastError() << endl;
         }
