@@ -42,7 +42,8 @@ while True:
         # current state and reward variables
         currState = unpack_data[0:6]
         reward = unpack_data[6]
-        done = False;
+        done = unpack_data[7];
+        print("State : ",unpack_data)
 
         if prev_state is not None:
             experience = (prev_state, prev_action, reward, currState, done)

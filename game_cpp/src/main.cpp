@@ -140,8 +140,8 @@ int main(){
         std::cout<<"Socket failed\n";
     }
 
-    DWORD timeout = 1; // 1 ms
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+    // DWORD timeout = 1; // 1 ms
+    // setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
     
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);
@@ -155,6 +155,9 @@ int main(){
         return -1;
     }
     glfwMakeContextCurrent(window);
+
+    // seeding random values
+    srand(time(NULL));
     
     // ----- GUI ----- //
     IMGUI_CHECKVERSION();
@@ -223,11 +226,20 @@ int main(){
         spawnTimer += deltaTime;
         if(spawnTimer >= spawnRate){
             Obstacle newObstacle;
-            newObstacle.Pos = glm::vec3((rand()%6)+10.0f,0.0f,0.0f);
+            // Always spawn exactly at the edge of the world
+            newObstacle.Pos = glm::vec3(20.0f, 0.0f, 0.0f); 
             newObstacle.Size = glm::vec3(0.4f);
             newObstacle.Speed = 5.0f;
             obstacles.push_back(newObstacle);
-            spawnTimer -= spawnRate;
+            
+            // Reset the timer
+            spawnTimer = 0.0f; 
+            
+            // Randomize the NEXT spawn time. 
+            // Minimum time = 1.2 seconds (safely greater than the 1.02s jump time)
+            // Maximum time = 2.5 seconds (keeps the game engaging)
+            float randomOffset = static_cast<float>(rand()) / static_cast<float>(RAND_MAX); // 0.0 to 1.0
+            spawnRate = 1.2f + (randomOffset * 1.3f);
         }
         
         float reward = 1.0f;
@@ -247,9 +259,9 @@ int main(){
             prevDone = false;
             
             int bytes = recv(sock, (char*)&action, sizeof(int), 0);
-            if(bytes > 0 ){
-                cout<<"REXXY : "<<action<<endl;
-            }
+            // if(bytes > 0 ){
+            //     cout<<"REXXY : "<<action<<endl;
+            // }
             
             rlTimer -= rlStep;
         }
