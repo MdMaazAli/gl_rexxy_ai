@@ -58,7 +58,7 @@ while True:
         conn.sendall(struct.pack('i', action))
 
     except Exception as e:
-       # print("Error:", e)
+        print("Error:", e)
         break
 
 conn.close()
