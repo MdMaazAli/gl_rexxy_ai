@@ -61,7 +61,7 @@ while True:
         conn.sendall(struct.pack('i', action))
 
     except Exception as e:
-       # print("Error:", e)
+        print("Error:", e)
         break
 
     time.sleep(0.1)
