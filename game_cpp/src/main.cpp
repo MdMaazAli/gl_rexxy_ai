@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <random>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -13,6 +14,7 @@
 #include "SimpleMesh.h"
 #include "Camera.h"
 #include "Collision.h"
+#include "TelemetryDashboard.h"
 using namespace std;
 using namespace glm;
 
@@ -135,11 +137,11 @@ vector<float> getState(const vector<Obstacle>& obstacles,float reward,bool done)
 int main(){
 
     SOCKET sock = initSocket();
-
+    
     if(sock == INVALID_SOCKET){
         std::cout<<"Socket failed\n";
     }
-
+    
     // DWORD timeout = 1; // 1 ms
     // setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
     
@@ -155,19 +157,23 @@ int main(){
         return -1;
     }
     glfwMakeContextCurrent(window);
+    
+    // initialising gui
+    // dashboard
+    TelemetryDashboard dashboard;
+    dashboard.Init(window);
+
+    // tracking the rexxy's performance
+    float currentFrames = 0.0f,highScoreFrames = 0.0f;
+    float currentSurvivalTime = 0.0f,maxSurvivalTime = 0.0f;
 
     // seeding random values
-    srand(time(NULL));
-    
-    // ----- GUI ----- //
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    
-    ImGui::StyleColorsDark();
-    
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init("#version 330");
+    std::random_device rd;  // Hardware entropy source (if available)
+    std::mt19937 gen(rd()); // Mersenne Twister engine
+
+    // Define our variance windows
+    std::uniform_real_distribution<float> spawnDist(1.2f, 2.5f); // Spawn every 1.2s to 2.5s
+    std::uniform_real_distribution<float> speedDist(4.0f, 7.5f); // Move at 4.0 to 7.5 units/sec
     
     if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){
         cout<<"failed to initialize GLAD"<<endl;
@@ -196,7 +202,8 @@ int main(){
     float spawnTimer = 0.0f,spawnRate = 1.5f;
 
     // rl learning timer
-    float rlTimer = 0.0f,rlStep = 1/30.0f;
+    // synced with the physics loop
+    float rlTimer = 0.0f,rlStep = 1/60.0f; // can tweak the rlStep first slower then faster as the model's ability to think grows
 
     // reward variables
     float prevReward = 1.0f;
@@ -208,6 +215,9 @@ int main(){
         deltaTime = currFrame - lastFrame;
         lastFrame = currFrame;
         accTime += deltaTime;
+
+        currentFrames++;
+        currentSurvivalTime += deltaTime;
         
         processInput(window);
         
@@ -229,17 +239,17 @@ int main(){
             // Always spawn exactly at the edge of the world
             newObstacle.Pos = glm::vec3(20.0f, 0.0f, 0.0f); 
             newObstacle.Size = glm::vec3(0.4f);
-            newObstacle.Speed = 5.0f;
+
+            // Assign a highly randomized speed from our distribution
+            newObstacle.Speed = speedDist(gen); 
+            
             obstacles.push_back(newObstacle);
             
             // Reset the timer
             spawnTimer = 0.0f; 
             
-            // Randomize the NEXT spawn time. 
-            // Minimum time = 1.2 seconds (safely greater than the 1.02s jump time)
-            // Maximum time = 2.5 seconds (keeps the game engaging)
-            float randomOffset = static_cast<float>(rand()) / static_cast<float>(RAND_MAX); // 0.0 to 1.0
-            spawnRate = 1.2f + (randomOffset * 1.3f);
+            // Randomize the NEXT spawn time directly using the distribution
+            spawnRate = spawnDist(gen);
         }
         
         float reward = 1.0f;
@@ -300,6 +310,15 @@ int main(){
                 }
             }
             if(done){
+                // ----- DEBUG ----- //
+                if(currentFrames > highScoreFrames){
+                    highScoreFrames = currentFrames;
+                    maxSurvivalTime = currentSurvivalTime;
+                }
+
+                currentFrames = 0.0f;
+                currentSurvivalTime = 0.0f;
+
                 prevReward = -100.0f;
                 playerPos = glm::vec3(0.0f);
                 prevDone = done;
@@ -335,29 +354,13 @@ int main(){
         }
         
         // ----- GUI ----- //
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        ImGui::Begin("Debug");
-        
-        ImGui::Text("Camera Position:");
-        ImGui::Text("X: %.2f", camera.Position.x);
-        ImGui::Text("Y: %.2f", camera.Position.y);
-        ImGui::Text("Z: %.2f", camera.Position.z);
-        
-        ImGui::End();
-        
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        dashboard.Render(currentFrames, currentSurvivalTime, highScoreFrames, maxSurvivalTime, camera.Position);
         
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+    dashboard.Shutdown();
     glfwTerminate();
     closeSocket(sock);
     return 0;
