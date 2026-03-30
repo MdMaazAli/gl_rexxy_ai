@@ -197,7 +197,7 @@ try:
         
         # AUTO-SAVE 
         frame_counter += 1
-        if frame_counter % 5000 == 0 & isTrainMode == 1:
+        if frame_counter % 5000 == 0 and isTrainMode == 1:
             print(f"\n[AUTO-SAVE] {frame_counter} frames reached. Backing up weights...")
             agent.save_model("rexxy_brain.keras") 
 
