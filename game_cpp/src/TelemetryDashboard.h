@@ -8,6 +8,6 @@ public:
     void Init(GLFWwindow* window);
     void Render(int currentFrames, float currentSurvivalTime, 
                 int highScoreFrames, float maxSurvivalTime, 
-                const glm::vec3& cameraPos);
+                const glm::vec3& cameraPos,int ammoLeft);
     void Shutdown();
 };

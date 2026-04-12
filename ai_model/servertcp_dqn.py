@@ -108,7 +108,7 @@ class DQNAgent :
             self.model = models.load_model(filename)
 
             if self.isTrainMode == 1 :
-                self.epsilon = self.epsilon_min 
+                self.epsilon = 1
             else :
                 self.epsilon = 0
 

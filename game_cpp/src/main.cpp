@@ -29,26 +29,34 @@ bool mouseFirst = true;
 float lastX = 800.0f/2.0f;
 float lastY = 600.0f/2.0f;
 
+// mouse capture toggle
+bool lstAltState = false;
+bool captureMouse = false;
+
 void mouse_callback(GLFWwindow* window,double xPosIn,double yPosIn){
-    float xPos = (float)xPosIn;
-    float yPos = (float)yPosIn;
-
-    if(mouseFirst){
-        xPos = lastX;
-        yPos = lastY;
-        mouseFirst = false;
+    if(captureMouse){
+        float xPos = (float)xPosIn;
+        float yPos = (float)yPosIn;
+        
+        if(mouseFirst){
+            xPos = lastX;
+            yPos = lastY;
+            mouseFirst = false;
+        }
+        
+        float xOffset = xPos-lastX;
+        float yOffset = lastY-yPos;
+        lastX = xPos;
+        lastY = yPos;
+        
+        camera.ProcessMouseMovement(xOffset,yOffset);
     }
-
-    float xOffset = xPos-lastX;
-    float yOffset = lastY-yPos;
-    lastX = xPos;
-    lastY = yPos;
-
-    camera.ProcessMouseMovement(xOffset,yOffset);
 }
 
 void scroll_callback(GLFWwindow* window,double xOffset,double yOffset){
-    camera.ProcessMouseScroll((float)yOffset);
+    if(!ImGui::GetIO().WantCaptureMouse && captureMouse){
+        camera.ProcessMouseScroll((float)yOffset);
+    }
 }
 
 float deltaTime = 0.0f;
@@ -57,6 +65,9 @@ float lastFrame = 0.0f;
 float speedY = 0.0f;
 glm::vec3 playerPos = glm::vec3(0.0f);
 bool isGrounded = true;
+
+bool isShoot = false;
+bool lstSpaceState = false;
 
 int action = 0;
 void processInput(GLFWwindow* window){
@@ -75,11 +86,32 @@ void processInput(GLFWwindow* window){
     if(glfwGetKey(window,GLFW_KEY_D) == GLFW_PRESS){
         camera.ProcessKeyboard(RIGHT,deltaTime);
     }
+
+    // mouse capture toggle
+    bool currAltState = (glfwGetKey(window,GLFW_KEY_LEFT_ALT) == GLFW_PRESS);
+    if(currAltState && !lstAltState){
+        captureMouse = !captureMouse;
+
+        if(captureMouse){
+            glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
+            mouseFirst = true;
+        }
+        else{
+            glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);
+        }
+    }
+    lstAltState = currAltState;
+
     // debug
     action = 0;
     // if(glfwGetKey(window,GLFW_KEY_SPACE) == GLFW_PRESS && isGrounded){
     //     action = 1;
     // }
+    bool currSpaceState = (glfwGetKey(window,GLFW_KEY_SPACE) == GLFW_PRESS);
+    if(currSpaceState && !lstSpaceState){
+        isShoot = true;
+    }
+    lstSpaceState = currSpaceState;
     if(action == 1 && isGrounded){
         isGrounded = false;
         speedY = 5.0f;
@@ -113,6 +145,14 @@ struct Collider{
     glm::vec3 Pos;
     glm::vec3 Size;
     float speed;
+};
+
+struct Ammo{
+    glm::vec3 Pos; 
+    float Size; 
+    glm::vec3 Speed; 
+    glm::vec3 ShootCords;
+    bool Fired; 
 };
 
 vector<float> getState(const vector<Obstacle>& obstacles,float reward,bool done){
@@ -158,6 +198,11 @@ int main(){
     }
     glfwMakeContextCurrent(window);
     
+    glfwSetFramebufferSizeCallback(window,framebuffer_size_callback);
+    glfwSetCursorPosCallback(window,mouse_callback);
+    glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_NORMAL);
+    glfwSetScrollCallback(window,scroll_callback);
+    
     // initialising gui
     // dashboard
     TelemetryDashboard dashboard;
@@ -183,12 +228,7 @@ int main(){
     Shader rexxyShader("src/rexxyVertShader.glsl","src/rexxyFragShader.glsl");
     SimpleMesh rexxyMesh("sphere");
     Player player;
-    
-    glfwSetFramebufferSizeCallback(window,framebuffer_size_callback);
-    glfwSetCursorPosCallback(window,mouse_callback);
-    glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
-    glfwSetScrollCallback(window,scroll_callback);
-    
+
     glEnable(GL_DEPTH_TEST);
     glViewport(0,0,800,600);
     
@@ -200,6 +240,22 @@ int main(){
 
     // obs spawner
     float spawnTimer = 0.0f,spawnRate = 1.5f;
+
+    Shader ammoShader("src/rexxyVertShader.glsl","src/rexxyFragShader.glsl");
+    SimpleMesh bullet("sphere");
+    vector<Ammo> ammoPool;
+    // ammo tracking
+    float shootTime = 0.0f;
+    float bulletSpeed = 5.0f;
+    int ammoLeft = 3;
+
+    // ammo pool
+    ammoPool.resize(3);
+    for(int i=0; i<3; i++){
+        ammoPool[i].Pos = glm::vec3(playerPos.x,0.0f,0.0f);
+        ammoPool[i].Size = 0.2f;
+        ammoPool[i].Speed = glm::vec3(bulletSpeed,0.0f,0.0f);
+    }
 
     // rl learning timer
     // synced with the physics loop
@@ -250,6 +306,18 @@ int main(){
             
             // Randomize the NEXT spawn time directly using the distribution
             spawnRate = spawnDist(gen);
+        }
+        
+        // ammoPool
+        if(glfwGetTime()-shootTime >= 5.0f && ammoLeft<=0){
+            ammoLeft = 3;
+            for(int i=0; i<3; i++){
+                Ammo newAmmo;
+                newAmmo.Pos = glm::vec3(playerPos.x,playerPos.y,0.0f);
+                newAmmo.Size = 0.2f;
+                newAmmo.Speed = glm::vec3(0.0f);
+                ammoPool.push_back(newAmmo);
+            }
         }
         
         float reward = 1.0f;
@@ -309,6 +377,50 @@ int main(){
                     ++it;
                 }
             }
+
+            // ammoPool
+            for(int i=ammoPool.size()-1; i>=0; i--){
+                if(isShoot && ammoPool[i].Fired==false){
+                    cout<<"DEBUG::SHOOTING!!"<<endl;
+                    if(ammoLeft == 1){
+                        shootTime = glfwGetTime();
+                    }
+                    ammoPool[i].Fired = true;
+                    ammoPool[i].Pos = glm::vec3(playerPos.x,playerPos.y,0.0f);
+                    ammoPool[i].ShootCords = ammoPool[i].Pos;
+                    ammoPool[i].Speed.x = bulletSpeed;
+                    isShoot = false;
+                    ammoLeft--;
+                }
+                else if(ammoPool[i].Fired == true){
+                    float dist = glm::distance(ammoPool[i].Pos,ammoPool[i].ShootCords);
+                    
+                    if(dist >= 20.0f){
+                        // ----- DEBUG:OUT OF RANGE ----- //
+                        ammoPool[i].Fired = false;
+                    }
+                    for(auto it = obstacles.begin(); it != obstacles.end(); ){
+                        glm::vec3 trueAABBCenter = it->Pos + glm::vec3(0.0f, it->Size.y / 2.0f, 0.0f);
+                        bool isCollision = Collision::CheckCollision_Sphere(ammoPool[i].Pos,0.2f,trueAABBCenter,it->Size);
+                        // collision check
+                        if(isCollision){
+                            cout<<"DEBUG::COLLISION"<<endl;
+                            ammoPool[i].Fired = false;
+                            it = obstacles.erase(it);
+                            break;
+                        }
+                        else{
+                            it++;
+                        }
+                    }
+                    
+                    if(ammoPool[i].Fired){
+                        ammoPool[i].Pos.x += ammoPool[i].Speed.x*dt;
+                    }
+                }
+            }
+            isShoot = false;
+
             if(done){
                 // ----- DEBUG ----- //
                 if(currentFrames > highScoreFrames){
@@ -353,8 +465,19 @@ int main(){
             pyramid.draw();
         }
         
+        ammoShader.use();
+        for(int i=ammoPool.size()-1; i>=0; i--){
+            if(ammoPool[i].Fired == true){
+                glm::mat4 ammoMesh = glm::mat4(1.0f);
+                ammoMesh = glm::translate(ammoMesh,glm::vec3(ammoPool[i].Pos.x,0.0f,0.0f));
+                ammoMesh = glm::scale(ammoMesh,glm::vec3(ammoPool[i].Size));
+                initModel(ammoShader,ammoMesh,view,projection,lightColor,lightPosView);
+                bullet.draw();
+            }
+        }
+
         // ----- GUI ----- //
-        dashboard.Render(currentFrames, currentSurvivalTime, highScoreFrames, maxSurvivalTime, camera.Position);
+        dashboard.Render(currentFrames, currentSurvivalTime, highScoreFrames, maxSurvivalTime, camera.Position, ammoLeft);
         
         glfwSwapBuffers(window);
         glfwPollEvents();

@@ -15,7 +15,7 @@ void TelemetryDashboard::Init(GLFWwindow* window) {
 
 void TelemetryDashboard::Render(int currentFrames, float currentSurvivalTime, 
                                 int highScoreFrames, float maxSurvivalTime, 
-                                const glm::vec3& cameraPos) {
+                                const glm::vec3& cameraPos,int ammoLeft) {
     // Start the ImGui frame
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -42,10 +42,14 @@ void TelemetryDashboard::Render(int currentFrames, float currentSurvivalTime,
     ImGui::Text("Max Frames: %d", highScoreFrames);
     ImGui::Spacing();
 
+    // Ammo tracking
+    ImGui::TextColored(ImVec4(0.5f, 0.3f, 0.1f, 1.0f), "--- Ammo Tracking ---");
+    ImGui::Text("Ammo Left: %d", ammoLeft);
+    
     // Debug
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "--- Camera Debug ---");
     ImGui::Text("X: %.2f | Y: %.2f | Z: %.2f", cameraPos.x, cameraPos.y, cameraPos.z);
-    
+
     ImGui::End();
 
     // Render to screen
